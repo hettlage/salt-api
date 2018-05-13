@@ -1,0 +1,165 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Quickstart &#8212; token-auth-requests 0.1.0 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Installation" href="installation.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="quickstart">
+<h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
+<p>This quickstart guide assumes that you have <a class="reference internal" href="installation.html"><span class="doc">installed</span></a> <cite>token-auth-requests</cite> already.</p>
+<div class="section" id="making-authenticated-http-requests">
+<h2>Making authenticated HTTP requests<a class="headerlink" href="#making-authenticated-http-requests" title="Permalink to this headline">¶</a></h2>
+<p>Let us assume we have an API server <cite>api.wakanda.gov.wk</cite>, which requires token based authentication for its API endpoints. It expects that along with your HTTP requests you send an HTTP header of the form</p>
+<div class="highlight-http notranslate"><div class="highlight"><pre><span></span>Authentication: Token abcd1234
+</pre></div>
+</div>
+<p>where <cite>abcd1234</cite> is the authentication token. Hopefully the token returned by the server is a bit more secure, though. Let us assume further that the server provides a route <cite>/token</cite>, which expects you to send an object with your username and password as a JSON string:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="nt">&quot;username&quot;</span><span class="p">:</span> <span class="s2">&quot;tchalla&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;WakandaForever&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Then you may make your life easier by using <cite>token-auth-requests</cite>. (Your token based authentication server works slightly differently? Don’t worry, we’ll cover that case below.) This package essentially provides a method <cite>auth_session</cite>, which accepts a username, password and the URL from which a token can be requested and returns an HTTP requests session. This session has all the functionality of a <cite>Session</cite> object of the <a class="reference external" href="http://docs.python-requests.org/">requests</a> library.</p>
+<p>For example, if there is a GET route <cite>/enemies</cite> and a POST route <cite>/save-the-world</cite>, we could do the following.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">session</span> <span class="o">=</span> <span class="n">auth_session</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s1">&#39;tchalla&#39;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s1">&#39;WakandaForver&#39;</span><span class="p">,</span> <span class="n">token_url</span><span class="o">=</span><span class="s1">&#39;http://api.wakanda.gov.wk/token&#39;</span><span class="p">)</span>
+
+<span class="c1"># who are the enemies?</span>
+<span class="n">r</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;http://api.wakanda.gov.wk/enemies&#39;</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+
+<span class="c1"># get to work!</span>
+<span class="n">r</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">&#39;http://api.wakanda.gov.wk/save-the-world&#39;</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">status_code</span><span class="p">)</span>  <span class="c1"># hopefully the status code is 200...</span>
+</pre></div>
+</div>
+<p>Refer to the <a class="reference external" href="http://docs.python-requests.org/">requests documentation</a> for all the cool stuff you can do. You don’t have to worry about about tokens or their expiry dates; they are taken care of automatically.</p>
+</div>
+<div class="section" id="custom-authentication-requests-and-responses">
+<h2>Custom authentication requests and responses<a class="headerlink" href="#custom-authentication-requests-and-responses" title="Permalink to this headline">¶</a></h2>
+<p>Of course chances are that your server does things differently. For example, it might expect an object with keys <cite>user</cite> and <cite>passphrase</cite>, and it might just return a string with the token. In this case the methods <cite>auth_request_maker</cite> and <cite>auth_response_parser</cite> come in handy, as they let you tweak the way request bodies are created and response bodies are parsed.</p>
+<p>Let us stick to our example. We first define two helper functions.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">make_request</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">password</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span>
+       <span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="n">username</span><span class="p">,</span>
+       <span class="s1">&#39;passphrase&#39;</span><span class="p">:</span> <span class="n">password</span>
+    <span class="p">}</span>
+
+<span class="k">def</span> <span class="nf">parse_response</span><span class="p">(</span><span class="n">response</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;token&#39;</span><span class="p">:</span> <span class="n">response</span><span class="p">,</span>
+        <span class="s1">&#39;expires_in&#39;</span><span class="p">:</span> <span class="mi">10000000</span>
+    <span class="p">}</span>
+</pre></div>
+</div>
+<p>There is no way to tell the session that a token never expires, so we just choose a large value for the token’s lifetime.</p>
+<p>Having defined these functions, we can let our session know about them.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">session</span> <span class="o">=</span> <span class="n">auth_session</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s1">&#39;tchalla&#39;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s1">&#39;WakandaForver&#39;</span><span class="p">,</span> <span class="n">token_url</span><span class="o">=</span><span class="s1">&#39;http://api.wakanda.gov.wk/token&#39;</span><span class="p">)</span>
+<span class="n">session</span><span class="o">.</span><span class="n">auth_request_maker</span><span class="p">(</span><span class="n">make_request</span><span class="p">)</span>
+<span class="n">session</span><span class="o">.</span><span class="n">auth_response_parser</span><span class="p">(</span><span class="n">parse_response</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And voilà, authentication works fine now.</p>
+</div>
+<div class="section" id="when-things-go-boom-in-the-night">
+<h2>When things go boom in the night<a class="headerlink" href="#when-things-go-boom-in-the-night" title="Permalink to this headline">¶</a></h2>
+<p>If you try to authenticate with a wrong username or password (and the server does the right thing and responds with a 401 status code), an <cite>AuthException</cite> is raised.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">try</span><span class="p">:</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="n">auth_session</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s1">&#39;tchalla&#39;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s1">&#39;WakandaIsLost&#39;</span><span class="p">,</span> <span class="n">token_url</span><span class="o">=</span><span class="s1">&#39;http://api.wakanda.gov.wk/token&#39;</span><span class="p">)</span>
+<span class="k">except</span> <span class="n">AuthException</span> <span class="k">as</span> <span class="n">ae</span><span class="p">:</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">ae</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In case the server replies with a status code other than 200 (OK) or 401 (Unauthorized), a more generic exception is raised.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Quickstart</a><ul>
+<li><a class="reference internal" href="#making-authenticated-http-requests">Making authenticated HTTP requests</a></li>
+<li><a class="reference internal" href="#custom-authentication-requests-and-responses">Custom authentication requests and responses</a></li>
+<li><a class="reference internal" href="#when-things-go-boom-in-the-night">When things go boom in the night</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="installation.html" title="previous chapter">Installation</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/quickstart.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, SALT/SAAO.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/quickstart.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

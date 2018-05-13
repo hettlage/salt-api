@@ -1,0 +1,244 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>token-auth-request &#8212; token-auth-requests 0.1.0 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<div class="section" id="token-auth-request">
+<h1>token-auth-request<a class="headerlink" href="#token-auth-request" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>It often makes sense to pair a web-based API with a Python-based library for easy access. If the API use requires authentication, the library must be able to handle it. While this certainly can be achieved on an ad hoc basis, it seems more reasonable to encapsulate the authentication handling into a Python package of its own.</p>
+<p><cite>token-auth-requests</cite> does precisely that. It accepts a username and password and uses them to request an authentication token, which is used for subsequent HTTP calls. The token is stored, and a new token is automatically requested if the current one has expired.</p>
+</div>
+<div class="section" id="conceptual-solution">
+<h2>Conceptual Solution<a class="headerlink" href="#conceptual-solution" title="Permalink to this headline">¶</a></h2>
+<p>The <cite>token-auth-requests</cite> package provides exactly one method, <cite>auth_session</cite>. This accepts a username, password and a URL. It returns an object which has all the methods of the <a class="reference external" href="http://docs.python-requests.org/">requests</a> library’s Session class. This object is called session in the following.</p>
+<p>Whenever a method corresponding to an HTTP verb (i.e. DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT or a custom verb) is called on the session, the session will first check whether it has a non-expired authentication token. Here non-expired means that the expiry time is in the past or within the next minute. If it has not expired, it sends an HTTP request to the URL passed to the <cite>auth_session</cite>. This request must look as follows.</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="32%" />
+<col width="68%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Property</th>
+<th class="head">Value</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>HTTP method</td>
+<td>POST</td>
+</tr>
+<tr class="row-odd"><td>Content-Type header</td>
+<td>application/json</td>
+</tr>
+<tr class="row-even"><td>Payload</td>
+<td>{ username: username, password: password }</td>
+</tr>
+</tbody>
+</table>
+<p>The response is expected to look as follows.</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="35%" />
+<col width="65%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Property</th>
+<th class="head">Value</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>HTTP status code</td>
+<td>200</td>
+</tr>
+<tr class="row-odd"><td>Content-Type header</td>
+<td>application/json</td>
+</tr>
+<tr class="row-even"><td>Data</td>
+<td>{ token: token, expires_in: seconds }</td>
+</tr>
+</tbody>
+</table>
+<p>For example, if the username and password passed to <cite>auth_session</cite> are <cite>sipho</cite> and <cite>topsecret</cite>, the token generated for the user is <cite>abcd1234</cite> and the token expires in 500 seconds, then the request should have the payload</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="nt">&quot;username&quot;</span><span class="p">:</span> <span class="s2">&quot;sipho&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;topsecret&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>and the response data should be</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="nt">&quot;token&quot;</span><span class="p">:</span> <span class="s2">&quot;abcd1234&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;expires_in&quot;</span><span class="p">:</span> <span class="mi">500</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Both the token and its expiry time are stored. After that, or if there was a non-expired token already, the token is added as an HTTP header with key <cite>Authentication</cite> and value <cite>Token xyz</cite> (where <cite>xyz</cite> denotes the token) to the session. For example, for the token above the header would look be</p>
+<dl class="docutils">
+<dt>::</dt>
+<dd>Authentication: Token abcd1234</dd>
+</dl>
+<p>Only then is the actual HTTP method of the <cite>requests</cite> Session class called. All positional and keyword arguments are passed on as is.</p>
+<p>If the server uses other formats for the authentication data and token, the session can be customised to handle these, as described below.</p>
+<p>The session exposes some public methods in addition to those of the requests Session class.</p>
+<div class="section" id="logout">
+<h3>logout()<a class="headerlink" href="#logout" title="Permalink to this headline">¶</a></h3>
+<blockquote>
+<div><p>The <cite>logout</cite> method, removes the username, password, token and expiry time. Any HTTP request will raise an exception after this method is called.</p>
+<p>The <cite>auth_request_maker</cite> method replaces the default function for creating the object to be of the POST request for getting the token. The function must accept a username and password as its arguments, and it must return an object which can be sent as JSON.</p>
+<p>The <cite>auth_response_parser</cite> replaces the default function for parsing the response body of the POST request for getting a token. It must accept a string as its only argument, and it must return a dictionary with <cite>token</cite> and <cite>expires_in</cite> as keys.</p>
+</div></blockquote>
+<p>The package also defines an exception type <cite>AuthException</cite>. An <cite>AuthException</cite> should be raised if the server replies with a 401 error when a token is requested, or if an HTTP request is made after the object’s <cite>logout</cite> method has been called.</p>
+</div>
+</div>
+<div class="section" id="tests">
+<h2>Tests<a class="headerlink" href="#tests" title="Permalink to this headline">¶</a></h2>
+<p>The package must pass the following tests.</p>
+<ol class="arabic simple">
+<li>If a correct username and password are passed to <cite>token_session</cite>, the first time one of the HTTP verb methods is called on the returned object, a POST request to the given URL is made with the username and password passed as a JSON string. Assuming the token has not expired, further calls don’t make such a request.</li>
+<li>If a correct username and password are passed to <cite>token_session</cite>, assuming the token has not expired, all subsequent HTTP requests (after the initial request for a token) have an Authentication header with the correct string.</li>
+<li>If an HTTP request is made and the current token’s expiry time is less than one minute in the future, a new token is requested and subsequent HTTP requests use the new token in the Authentication header.</li>
+<li>The logout method removes username, password, token and expiry date.</li>
+<li>An AuthException is raised if the server replies with a 401 error when a token is requested.</li>
+<li>An AuthException is raised if an HTTP request is made after the logout method has been called.</li>
+<li>An exception is raised if the server replies with a status code other than 200 or 401.</li>
+<li><cite>auth_request_maker</cite> changes the function for making the body of an authentication request.</li>
+<li><cite>auth_response_parser</cite> changes the function for parsing the response of an authentication request.</li>
+</ol>
+</div>
+<div class="section" id="implementation">
+<h2>Implementation<a class="headerlink" href="#implementation" title="Permalink to this headline">¶</a></h2>
+<p>The <cite>auth_session</cite> method returns an instance of a class <cite>AuthSession</cite>. This class has the following properties:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="18%" />
+<col width="82%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Property</th>
+<th class="head">Description</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>username</td>
+<td>Username passed to <cite>auth_session</cite></td>
+</tr>
+<tr class="row-odd"><td>password</td>
+<td>Password passed to <cite>auth_session</cite></td>
+</tr>
+<tr class="row-even"><td>auth_url</td>
+<td>Authentication URl, as passed to <cite>auth_session</cite></td>
+</tr>
+<tr class="row-odd"><td>token</td>
+<td>Token returned by the server</td>
+</tr>
+<tr class="row-even"><td>expiry_time</td>
+<td>Datetime when the token expires</td>
+</tr>
+<tr class="row-odd"><td>logged_out</td>
+<td>Flag indicating whether the logout method has been called</td>
+</tr>
+<tr class="row-even"><td>_session</td>
+<td>requests Session instance</td>
+</tr>
+</tbody>
+</table>
+<p>The class also implements the <cite>__getattr__</cite> method. This checks whether the argument is a <cite>requests</cite> Session corresponding to an HTTP verb. If so, it makes sure that the <cite>logged_out</cite> flag is <cite>False</cite> (and throws an <cite>AuthException</cite> if that is not the case). It then checks whether there is a non-expired token and, if so, calls the method on <cite>_session</cite>. Otherwise, it tries to get a token from the server, adds the token as an HTTP header to <cite>_session</cite> and then calls the method on <cite>_session</cite>.</p>
+<p>The class also has a method <cite>logout</cite>, which sets the username, password, token and expiry_time to <cite>None</cite> and the <cite>logged_out</cite> flag to <cite>True</cite>.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="#">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">token-auth-request</a><ul>
+<li><a class="reference internal" href="#introduction">Introduction</a></li>
+<li><a class="reference internal" href="#conceptual-solution">Conceptual Solution</a><ul>
+<li><a class="reference internal" href="#logout">logout()</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#tests">Tests</a></li>
+<li><a class="reference internal" href="#implementation">Implementation</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, SALT/SAAO.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
