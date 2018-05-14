@@ -1,6 +1,6 @@
 import os
 import codecs
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def read(fname):
@@ -9,7 +9,7 @@ def read(fname):
 
 
 setup(
-    name="token_auth_requests",
+    name="salt_api",
     version="0.1.0",
     author='SALT/SAAO',
     author_email='salthelp@salt.ac.za',
@@ -19,10 +19,11 @@ setup(
     url='https://github.com/saltastro/pytest-db-content',
     description='A plugin for using pytest with a database',
     long_description=read('README.rst'),
-    py_modules=['token_auth_requests'],
+    packages=find_packages(where='src'),
+    package_dir={'': 'src'},
     python_requires='>=3.6',
-    install_requires=['requests'],
-    tests_require=['pytest', 'httpretty', 'freezegun'],
+    install_requires=['token_auth_requests'],
+    tests_require=['pytest', 'httpretty'],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Framework :: Pytest',
