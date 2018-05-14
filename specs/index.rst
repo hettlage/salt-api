@@ -45,9 +45,11 @@ An exception is raised if the download fails.
 Tests
 -----
 
-The `submit` function shall pass the following tests.
+The `salt_api` package shall pass the following tests.
 
-* The `api` package has an `api_session` object.
+* The package has a `session` object, which is of type 'AuthSession'.
+  
+The `submit` function in the proposals module shall pass the following tests.
 
 * `submit` makes a PUT request to `/proposals/{proposal_code}` if a proposal code is passed.
 
@@ -65,7 +67,7 @@ The `submit` function shall pass the following tests.
   
 * An exception is raised if the server responds with with an error code. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
   
-The `download` function shall pass the following tests.
+The `download` function in the `proposals` module shall pass the following tests.
 
 * `download` makes a request to `/proposals/{proposal_code}` if the case-insensitive content type is 'proposal'. An Accept header with value `application/zip` is included in this request.
 
