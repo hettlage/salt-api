@@ -14,6 +14,8 @@ Conceptual Solution
 
 The `api_package` contains a HTTP session object created with the `auth_session` function of the `auth-token-requests` package.
 
+The `proposals` module makes HTTP requests to a server with base URL `http://saltapi.salt.ac.za`. The base URL can be changed by setting the environment variable `SALT_API_PROPOSALS_BASE_URL`.
+
 The `api.proposals` package includes the following functions.
 
 `submit(filename, proposal_code)`
