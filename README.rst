@@ -1,5 +1,5 @@
-token_auth_request
-==================
+salt-api
+========
 
 .. image:: https://img.shields.io/pypi/v/token_auth_request.svg
     :target: https://pypi.python.org/pypi/token_auth_request
@@ -29,4 +29,4 @@ Licence
 Authors
 -------
 
-`token_auth_request` was written by `SAAO/SALT <salthelp@salt.ac.za>`_.
+`salt-api` was written by `SAAO/SALT <salthelp@salt.ac.za>`_.
