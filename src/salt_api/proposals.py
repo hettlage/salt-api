@@ -120,7 +120,7 @@ def _zip_proposal_content(zip_file, xml, attachments_dir):
     # root directory for relative file paths
     if attachments_dir:
         root_dir = attachments_dir
-    elif not getattr(xml, 'read'):
+    elif not hasattr(xml, 'read'):
         root_dir = os.path.abspath(os.path.join(xml, os.path.pardir))
     else:
         root_dir = None
