@@ -79,6 +79,16 @@ The `submit` function in the proposals module shall pass the following tests.
   
 * An exception is raised if the server responds with with an error code. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
   
+The `zip_proposal_content` function in the `proposals` module shall pass the following tests.
+
+* The XML file and the referenced files are zipped correctly.
+  
+* The parent directory of the XML file is used as the default root directory for the attachment files.
+  
+* The value passed for the attachments_dir parameter is used as the root directory for the attachment files.
+  
+* An exception is raised if the XML contains a relative file path, the value passed for the xml parameter is not a string, and no value is passed for the attachments_dir parameter.
+  
 The `download` function in the `proposals` module shall pass the following tests.
 
 * `download` makes a request to `/proposals/{proposal_code}` if the case-insensitive content type is 'proposal'. An Accept header with value `application/zip` is included in this request.
@@ -92,7 +102,6 @@ The `download` function in the `proposals` module shall pass the following tests
  * An exception is raised if the case-insensitive content type is not `proposal` and no name is supplied.
    
  * An exception is raised if the server responds with with an error code. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
-
 
 Implementation
 --------------
