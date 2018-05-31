@@ -21,10 +21,11 @@ The `api.proposals` package includes the following functions.
 `submit(filename, proposal_code)`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This function submits content for a proposal. The content must be a zip file or an XML file. A zip file is submitted as is. 
-`filename` can be a string , a file object or a file-like object. A string is interpreted as a file path. If a file object or file-like object is passed, it must not be an XML file referencing other files.
+This function submits content for a proposal. The content must be a zip file or an XML file. A zip file is submitted as is. An XML file is turned into a zip file with the `zip_proposal_content` function.
 
-The value of the `proposal_code` argument must be consistent with the proposal code in the submitted file content (if there is one), but this is not checked. It is required if you submit blocks or if the submitted proposal doesn't include an existing proposal code, but this is not checked.
+`filename` can be a string , a file object or a file-like object. A string is interpreted as a file path. If a file object or file-like object is passed, it must not be an XML file referencing other files via relative file paths.
+
+The value of the `proposal_code` argument must be consistent with the proposal code in the submitted file content (if there is one), but this is not checked. The `proposal_code` argument is required if you submit blocks or if the submitted proposal doesn't include an existing proposal code, but this is not checked.
 
 An exception is raised if the submission fails.
 
@@ -74,6 +75,10 @@ The `submit` function in the proposals module shall pass the following tests.
 * An exception is raised if the file passed to `submit` does not exist.
 
 * An exception is raised if the file passed is an XML file and any of its Path elements contains a file path which does not exist.
+
+* An exception is raised if a file or file-like object is passed as proposal content, its content is XML and the XML has a Path element containing a relative file path.
+
+* An exception is raised if the file passed is an XML file and any of its Path elements contains a file path which is a directory.
   
 * An exception is raised if the file passed cannot be interpreted as a zip file or an XML file.
   
@@ -88,6 +93,8 @@ The `zip_proposal_content` function in the `proposals` module shall pass the fol
 * The value passed for the attachments_dir parameter is used as the root directory for the attachment files.
   
 * An exception is raised if the XML contains a relative file path, the value passed for the xml parameter is not a string, and no value is passed for the attachments_dir parameter.
+  
+* An exception is raised if a referenced file does not exist.
   
 The `download` function in the `proposals` module shall pass the following tests.
 
