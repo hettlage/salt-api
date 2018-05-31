@@ -1,4 +1,5 @@
 import os
+import tempfile
 import uuid
 from zipfile import is_zipfile, ZipFile
 from defusedxml import ElementTree
@@ -29,12 +30,23 @@ def submit(filename, proposal_code=None):
 
     """
 
-    if hasattr(filename, 'read'):
-        _submit(filename, None, proposal_code)
+    if not hasattr(filename, 'read'):
+        attachments_dir = os.path.abspath(os.path.join(filename, os.path.pardir))
     else:
-        with open(filename, 'rb') as f:
-            attachments_dir = os.path.abspath(os.path.join(filename, os.path.pardir))
-            _submit(f, attachments_dir, proposal_code)
+        attachments_dir = None
+
+    if is_zipfile(filename):
+        if hasattr(filename, 'read'):
+            _submit(filename, attachments_dir, proposal_code)
+        else:
+            with open(filename, 'rb') as f:
+                _submit(f, attachments_dir, proposal_code)
+    else:
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            zipped_filename = os.path.join(tmpdirname, 'proposal_content.zip')
+            zip_proposal_content(zipped_filename, filename)
+            with open(zipped_filename, 'rb') as f:
+                _submit(f, attachments_dir, proposal_code)
 
 
 def zip_proposal_content(zip_filename, xml, attachments_dir=None):
@@ -90,9 +102,7 @@ def _submit(file, attachments_dir, proposal_code):
 
     base_url = os.environ.get('SALT_API_PROPOSALS_BASE_URL', 'http://saltapi.salt.ac.za')
 
-    submitted_file = _submitted_file(file, attachments_dir)
-
-    files = {'file': submitted_file}
+    files = {'file': file}
     if proposal_code:
         session.put('{base_url}/proposals/{proposal_code}'.format(base_url=base_url, proposal_code=proposal_code),
                     files=files)
@@ -159,10 +169,3 @@ def _zip_proposal_content(zip_file, xml, attachments_dir):
         z.writestr('{name}.xml'.format(name=root_tag), ElementTree.tostring(root, encoding='UTF-8'))
         for real_path, zip_path in attachments.items():
             z.write(real_path, zip_path)
-
-
-def _submitted_file(file, parent_dir):
-    if is_zipfile(file):
-        return file
-
-    return file
