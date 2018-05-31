@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-from io import StringIO
+from io import BytesIO, StringIO
 import re
 import zipfile
 import pytest
@@ -35,7 +35,7 @@ def test_submit_post_without_proposal_code(tmpdir, monkeypatch, uri, dummy_zip):
     assert mock_post.call_args[0][0] == uri('/proposals')
 
 
-def test_zip_file_is_submitted_by_post_as_is(tmpdir, monkeypatch, dummy_zip):
+def test_zip_file_is_submitted_as_is(tmpdir, monkeypatch, dummy_zip):
     """submit submits zip files as is."""
 
     mock_post = MagicMock()
@@ -59,12 +59,12 @@ def test_zip_file_is_submitted_by_post_as_is(tmpdir, monkeypatch, dummy_zip):
         assert submitted_file_content == expected_file_content
 
 
-def test_zip_proposal_content_includes_referenced_files(tmpdir):
-    """zip_proposal_content zips the proposal content correctly."""
+def test_submit_zips_xml_content(tmpdir, monkeypatch):
+    """submit zips an XML file and files referenced in it."""
 
     xml_template = '''<?xml version="1.0"?>
 
-<Proposal>
+<XYZ>
     <ns1:Path xmlns:ns1="http://www.saao.ac.za/ns1">{path1}</ns1:Path>
     <A>
         <B xmlns="http://www.saao.ac.za/ns2">
@@ -79,7 +79,91 @@ def test_zip_proposal_content_includes_referenced_files(tmpdir):
             auto-generated
         </Path>
     </A>
-</Proposal>'''
+</XYZ>'''
+
+    # first referenced file
+    pdf_content = b'This is a fake pdf file.'
+    path1 = tmpdir.join('a.pdf')
+    with open(path1.strpath, 'wb') as f:
+        f.write(pdf_content)
+
+    # second referenced file
+    sub_dir = tmpdir.mkdir('img')
+    path2 = sub_dir.join('b.png')
+    png_content = b'This is a fake png file.'
+    with open(path2.strpath, 'wb') as f:
+        f.write(png_content)
+
+    # third referenced file
+    another_subdir = tmpdir.mkdir('spreadsheets')
+    yet_another_subdir = another_subdir.mkdir('important')
+    path3 = yet_another_subdir.join('c.xlsx')
+    xlsx_content = b'This is a fake spreadsheet.'
+    with open(path3.strpath, 'wb') as f:
+        f.write(xlsx_content)
+
+    # create the proposal content XML
+    xml_file = tmpdir.join('content.xml')
+    with open(xml_file.strpath, 'w') as xml:
+        xml.write(xml_template.format(path1='a.pdf', path2=path2, path3=path3))
+
+    # submit
+    submitted_bytes = BytesIO()
+
+    def mock_post(*args, **kwargs):
+        submitted_bytes.write(kwargs['files']['file'].read())
+
+    monkeypatch.setattr(salt_api.proposals.session, 'post', mock_post)
+    submit(xml_file.strpath)
+
+    # get the submitted file content
+    expected_zip = tmpdir.join('expected.zip')
+    zip_proposal_content(expected_zip.strpath, xml_file.strpath)
+    with zipfile.ZipFile(submitted_bytes) as z_submitted, zipfile.ZipFile(expected_zip) as z_expected:
+        assert 'XYZ.xml' in z_submitted.namelist()
+        submitted_xml = None
+        submitted_pdf = None
+        submitted_png = None
+        submitted_xlsx =  None
+        for name in z_submitted.namelist():
+            if name.endswith('.xml'):
+                submitted_xml = z_submitted.read(name)
+            if name.endswith('.pdf'):
+                submitted_pdf = z_submitted.read(name)
+            if name.endswith('.png'):
+                submitted_png = z_submitted.read(name)
+            if name.endswith('.xlsx'):
+                submitted_xlsx = z_submitted.read(name)
+
+        # check the submitted file content
+        assert len(z_submitted.namelist()) == len(z_expected.namelist())
+        assert b'XYZ>' in submitted_xml
+        assert submitted_pdf == pdf_content
+        assert submitted_png == png_content
+        assert submitted_xlsx == xlsx_content
+
+
+def test_zip_proposal_content_includes_referenced_files(tmpdir):
+    """zip_proposal_content zips the proposal content correctly."""
+
+    xml_template = '''<?xml version="1.0"?>
+
+<XYZ>
+    <ns1:Path xmlns:ns1="http://www.saao.ac.za/ns1">{path1}</ns1:Path>
+    <A>
+        <B xmlns="http://www.saao.ac.za/ns2">
+            <Path>
+                {path2}
+            </Path>
+            <Path>automatic</Path> 
+            <C/>
+        </B>
+        <ns3:Path xmlns:ns3="http://www.saao.ac.za/ns3">{path3}</ns3:Path>
+        <Path>
+            auto-generated
+        </Path>
+    </A>
+</XYZ>'''
 
     # first referenced file
     path1 = tmpdir.join('a.pdf')
@@ -113,11 +197,11 @@ def test_zip_proposal_content_includes_referenced_files(tmpdir):
         names = z.namelist()
 
         # XNL file and 3 attachments
-        assert 'Proposal.xml' in names
+        assert 'XYZ.xml' in names
         assert len(names) == 4
 
         # paths were updated correctly
-        xml_content = z.read('Proposal.xml').decode()
+        xml_content = z.read('XYZ.xml').decode()
         for m in re.finditer(r'Path>\s*([^<]*)\s*</[^>]+Path', xml_content, flags=re.MULTILINE):
             path = m.group(1).strip()
             assert path in names or path in ('automatic', 'auto-generated')
@@ -222,9 +306,9 @@ def test_zip_proposal_content_uses_attachments_dir(tmpdir):
             assert z.read(path) == f.read()
 
 
-def test_zip_proposal_content_must_be_able_to_resolve_relative_paths(tmpdir):
-    """zip_proposal_content must raise a meaningful exception if the XML contains a relative file path, the value passed for the
-    xml parameter is not a string, and no value is passed for the attachments_dir parameter."""
+def test_zip_proposal_content_no_attachment_dir(tmpdir):
+    """zip_proposal_content must raise a meaningful exception if the XML contains a relative file path, the value
+    passed for the xml parameter is not a string, and no value is passed for the attachments_dir parameter."""
 
     xml = '''<?xml version="1.0"?>
 
@@ -238,3 +322,37 @@ def test_zip_proposal_content_must_be_able_to_resolve_relative_paths(tmpdir):
         zip_proposal_content(zip_filename, StringIO(xml))
 
     assert 'no attachment directory' in str(excinfo.value)
+
+
+def test_zip_proposal_content_missing_file(tmpdir):
+    """zip_proposal_content must raise a meaningful exception if the XML references a file that does not exist."""
+
+    xml = '''<?xml version="1.0"?>
+
+<Proposal>
+    <ns1:Path xmlns:ns1="http://www.saao.ac.za/ns1">/absolute/path</ns1:Path>
+</Proposal>'''
+
+    zip_filename = tmpdir.join('proposal_content.zip')
+
+    with pytest.raises(Exception) as excinfo:
+        zip_proposal_content(zip_filename, StringIO(xml))
+
+    assert 'does not exist' in str(excinfo.value)
+
+
+def test_zip_proposal_content_referencing_directory(tmpdir):
+    """zip_proposal_content must raise a meaningful exception if the XML references a directory."""
+
+    xml = '''<?xml version="1.0"?>
+
+<Proposal>
+    <ns1:Path xmlns:ns1="http://www.saao.ac.za/ns1">{dir}</ns1:Path>
+</Proposal>'''.format(dir=str(tmpdir))
+
+    zip_filename = tmpdir.join('proposal_content.zip')
+
+    with pytest.raises(Exception) as excinfo:
+        zip_proposal_content(zip_filename, StringIO(xml))
+
+    assert 'is no file' in str(excinfo.value)
