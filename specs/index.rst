@@ -44,14 +44,14 @@ File paths in the Path elements are replaced with relative paths of the form `In
 
 The XML file and all the files referenced in Path elements are zipped. The name of the XML file shall be that of its root element, plus the file extension 'xml'. The paths of the other files shall be those contained in the Path elements.
 
-`download(proposal_code, content_type, name)`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`download(filename, proposal_code, content_type, name)`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This function downloads content for a proposal. The content type may either be a proposal or a block. If a block is requested, its name must be supplied.
 
 In case a block is requested, the function first resolves the name to the block's unique id and then requests the block for that id.
 
-The requested content (which always is a zip file) is stored as a temporary file and the path of this file is returned.
+The requested content (which always is a zip file) is stored in the file specified by the filename parameter. This may either be a file path or a file-like object.
 
 An exception is raised if the download fails.
 
@@ -82,7 +82,7 @@ The `submit` function in the proposals module shall pass the following tests.
   
 * An exception is raised if the file passed cannot be interpreted as a zip file or an XML file.
   
-* An exception is raised if the server responds with with an error code. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
+* An exception is raised if the server responds with with a status code which is not between 200 and 299. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
   
 The `zip_proposal_content` function in the `proposals` module shall pass the following tests.
 
@@ -98,11 +98,13 @@ The `zip_proposal_content` function in the `proposals` module shall pass the fol
   
 The `download` function in the `proposals` module shall pass the following tests.
 
-* `download` makes a request to `/proposals/{proposal_code}` if the case-insensitive content type is 'proposal'. An Accept header with value `application/zip` is included in this request.
+* `download` makes a GET request to `/proposals/{proposal_code}` if the case-insensitive content type is 'proposal'. An Accept header with value `application/zip` is included in this request.
 
 * `download` makes a GET request to `/proposals/{proposal_code}/blocks/resolve` with the query parameter `name`, the value of which is the string passed as the name argument. It parses the result as a JSON object and uses the value of the field `code` as the id in a GET request to `/proposals/{proposal_code}/blocks/{id}`. An Accept header with value `application/zip` is included in this request.
   
- * `download` saves the downloaded content as a temporary file with extension `.zip` and returns the absolute path of this file.
+ * `download` saves the downloaded content in a given file-like object.
+   
+ * `download` saves the downloaded content in a file with a given file path.
    
  * An exception is raised if the case-insensitive content type is neither `proposal` nor `block`.
  
