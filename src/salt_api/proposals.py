@@ -37,11 +37,14 @@ def submit(filename, proposal_code=None):
 
     if is_zipfile(filename):
         if hasattr(filename, 'read'):
+            filename.seek(0)  # as the is_zipfile function has read in the content
             _submit(filename, attachments_dir, proposal_code)
         else:
             with open(filename, 'rb') as f:
                 _submit(f, attachments_dir, proposal_code)
     else:
+        if hasattr(filename, 'read'):
+            filename.seek(0)  # as the is_zipfile function has read in the content
         with tempfile.TemporaryDirectory() as tmpdirname:
             zipped_filename = os.path.join(tmpdirname, 'proposal_content.zip')
             zip_proposal_content(zipped_filename, filename)
