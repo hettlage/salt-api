@@ -2,3 +2,4 @@
 .pytest_cache
 /src/salt_api.egg-info
 __pycache__
+/.hypothesis
