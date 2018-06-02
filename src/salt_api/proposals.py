@@ -107,11 +107,19 @@ def _submit(file, attachments_dir, proposal_code):
 
     files = {'file': file}
     if proposal_code:
-        session.put('{base_url}/proposals/{proposal_code}'.format(base_url=base_url, proposal_code=proposal_code),
-                    files=files)
+        response = session.put('{base_url}/proposals/{proposal_code}'.format(base_url=base_url,
+                                                                             proposal_code=proposal_code),
+                               files=files)
     else:
-        session.post('{base_url}/proposals'.format(base_url=base_url),
-                     files=files)
+        response = session.post('{base_url}/proposals'.format(base_url=base_url),
+                                files=files)
+
+    if response.status_code < 200 or response.status_code >= 300:
+        try:
+            error = response.json()['error']
+        except:
+            error = 'The submission failed with status code {status}'.format(status=response.status_code)
+        raise Exception(error)
 
 
 def _zip_proposal_content(zip_file, xml, attachments_dir):
@@ -172,3 +180,41 @@ def _zip_proposal_content(zip_file, xml, attachments_dir):
         z.writestr('{name}.xml'.format(name=root_tag), ElementTree.tostring(root, encoding='UTF-8'))
         for real_path, zip_path in attachments.items():
             z.write(real_path, zip_path)
+
+
+def download(filename, proposal_code, content_type, name=None):
+    """Download proposal content.
+
+    The content is downloaded for the proposal with the given proposal code.
+
+    Depending on the content_type parameter, either a whole proposal or a block is downloaded. When requesting a
+    block, its name (not its block code) must be passed as the name parameter.
+
+    The downloaded content, which is a zip file including an XML file and any files referenced therein,
+    is saved in the specified file.
+
+    Parameters
+    ----------
+    filename : str or file-like
+        The file in which the downloaded content is stored.
+    proposal_code : str
+        The proposal code, such as `2018-1-SCI-042`.
+    content_type : str
+        The type of downloaded content. Must be either `proposal` or `block`.
+    name : str, optional
+        The name of the block to download. This is required when downloading a block and is ignored when downloading
+         a proposal.
+
+    """
+
+    base_url = os.environ.get('SALT_API_PROPOSALS_BASE_URL', 'http://saltapi.salt.ac.za')
+
+    if content_type.lower() == 'proposal':
+        session.get('{base_url}/proposals/{proposal_code}'.format(base_url=base_url, proposal_code=proposal_code),
+                    headers={'Content-Type': 'application/zip'})
+    elif content_type.lower() == 'block':
+        r = session.post('{base_url}/proposals/{proposal_code}/blocks/resolve'
+                         .format(base_url=base_url,
+                                 proposal_code=proposal_code),
+                         json=dict(name=name))
+
