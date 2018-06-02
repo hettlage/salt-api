@@ -1,16 +1,24 @@
 from unittest.mock import MagicMock
 from io import BytesIO, StringIO
+import json
 import re
 import zipfile
+from collections import namedtuple
+import httpretty
 import pytest
 import salt_api.proposals
-from salt_api.proposals import submit, zip_proposal_content
+from salt_api.proposals import download, submit, zip_proposal_content
+
+
+# mock HTTP response object
+HttpResponse = namedtuple('Response', 'status_code')
+ok_response = HttpResponse(status_code=200)
 
 
 def test_submit_put_with_proposal_code(tmpdir, monkeypatch, uri, dummy_zip):
     """submit makes a PUT request to /proposals/[proposal_code] if called with a proposal code"""
 
-    mock_put = MagicMock()
+    mock_put = MagicMock(return_value=ok_response)
     monkeypatch.setattr(salt_api.proposals.session, 'put', mock_put)
 
     zip_file = tmpdir.join('a.zip')
@@ -24,7 +32,7 @@ def test_submit_put_with_proposal_code(tmpdir, monkeypatch, uri, dummy_zip):
 def test_submit_post_without_proposal_code(tmpdir, monkeypatch, uri, dummy_zip):
     """submit makes a POST request to /proposals if called without a proposal code"""
 
-    mock_post = MagicMock()
+    mock_post = MagicMock(return_value=ok_response)
     monkeypatch.setattr(salt_api.proposals.session, 'post', mock_post)
 
     zip_file = tmpdir.join('a.zip')
@@ -38,7 +46,7 @@ def test_submit_post_without_proposal_code(tmpdir, monkeypatch, uri, dummy_zip):
 def test_zip_file_is_submitted_as_is(tmpdir, monkeypatch, dummy_zip):
     """submit submits zip files as is."""
 
-    mock_post = MagicMock()
+    mock_post = MagicMock(return_value=ok_response)
     monkeypatch.setattr(salt_api.proposals.session, 'post', mock_post)
 
     zip_path = tmpdir.join('proposal_content.zip')
@@ -112,6 +120,7 @@ def test_submit_zips_xml_content(tmpdir, monkeypatch):
 
     def mock_post(*args, **kwargs):
         submitted_bytes.write(kwargs['files']['file'].read())
+        return ok_response
 
     monkeypatch.setattr(salt_api.proposals.session, 'post', mock_post)
     submit(xml_file.strpath)
@@ -141,6 +150,73 @@ def test_submit_zips_xml_content(tmpdir, monkeypatch):
         assert submitted_pdf == pdf_content
         assert submitted_png == png_content
         assert submitted_xlsx == xlsx_content
+
+
+def test_submit_file_does_not_exist():
+    """submit raises a meaningful exception if the submitted file does not exist."""
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        submit('/abc/xft/6786.zip')
+
+    assert '/abc/xft/6786.zip' in str(excinfo.value)
+
+
+def test_submit_referenced_file_does_not_exist():
+    """submit raises a meaningful exception if a submitted XML file references a non-existing file."""
+
+    xml = '''<?xml version="1.0"?>
+
+<A>
+    <Path>/abc/chy46/ght33.png</Path>
+</A>'''
+
+    with pytest.raises(Exception) as excinfo:
+        submit(StringIO(xml))
+
+    assert '/abc/chy46/ght33.png' in str(excinfo.value)
+
+
+def test_submit_neither_zip_nor_xml():
+    """submit raises an exception if the submitted file is no zip file and cannot be parsed as XML."""
+
+    with pytest.raises(Exception):
+        submit(StringIO('This is not XML.'))
+
+
+@httpretty.httprettified
+@pytest.mark.parametrize('status', [400, 401, 403, 500])
+def test_submit_submission_fails(tmpdir, dummy_zip, uri, status):
+    """submit raises an exception if the submission fails."""
+
+    httpretty.register_uri(httpretty.POST,
+                           uri=uri('/proposals'),
+                           status=status)
+
+    zip_file = tmpdir.join('a.zip')
+    dummy_zip(zip_file.strpath, 'Test', 'b.txt')
+    with pytest.raises(Exception) as excinfo:
+        submit(zip_file.strpath)
+
+    assert str(status) in str(excinfo.value)
+
+
+@httpretty.httprettified
+@pytest.mark.parametrize('status', [400, 401, 403, 500])
+def test_submit_submission_fails_with_error_message(tmpdir, dummy_zip, uri, status):
+    """submit raises an exception with the error message if the submission fails with an error message."""
+
+    error_message = 'This is an error.'
+    httpretty.register_uri(httpretty.POST,
+                           uri=uri('/proposals'),
+                           body=json.dumps(dict(error=error_message)),
+                           status=status)
+
+    zip_file = tmpdir.join('a.zip')
+    dummy_zip(zip_file.strpath, 'Test', 'b.txt')
+    with pytest.raises(Exception) as excinfo:
+        submit(zip_file.strpath)
+
+    assert error_message in str(excinfo.value)
 
 
 def test_zip_proposal_content_includes_referenced_files(tmpdir):
