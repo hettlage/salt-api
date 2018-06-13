@@ -3,3 +3,4 @@
 /src/salt_api.egg-info
 __pycache__
 /.hypothesis
+.DS_Store
