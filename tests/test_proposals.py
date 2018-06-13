@@ -432,3 +432,83 @@ def test_zip_proposal_content_referencing_directory(tmpdir):
         zip_proposal_content(zip_filename, StringIO(xml))
 
     assert 'is no file' in str(excinfo.value)
+
+
+def test_download_requests_proposal(monkeypatch, uri):
+    """download requests a proposal if 'proposal' is passed as the content type."""
+
+    proposal_code = '2018-1-SCI-042'
+
+    mock_get = MagicMock(return_value=ok_response)
+    monkeypatch.setattr(salt_api.proposals.session, 'get', mock_get)
+
+    download(BytesIO(), proposal_code=proposal_code, content_type='proposal')
+
+    assert mock_get.call_args[0][0] == uri('/proposals/{proposal_code}'.format(proposal_code=proposal_code))
+    assert mock_get.call_args[1]['headers']['Content-Type'] == 'application/zip'
+
+
+@httpretty.httprettified
+def test_download_resolves_block_name(monkeypatch, uri):
+    """download resolves a block name."""
+
+    proposal_code = '2018-1-SCI-042'
+    block_name = 'My Shiny Block'
+
+    mock_get = MagicMock(ok_response)
+    mock_post = MagicMock(ok_response)
+    monkeypatch.setattr(salt_api.proposals.session, 'get', mock_get)
+    monkeypatch.setattr(salt_api.proposals.session, 'post', mock_post)
+
+    download(BytesIO, proposal_code=proposal_code, content_type='block', name=block_name)
+
+    assert mock_post.call_args[0][0] == uri('/proposals/{proposal_code}/blocks/resolve'
+                                            .format(proposal_code=proposal_code))
+    assert mock_post.call_args[1]['json'] == dict(name=block_name)
+
+
+@httpretty.httprettified
+def test_download_requests_block(monkeypatch, uri):
+    """download requests a block if 'block' is passed as the content type."""
+
+    proposal_code = '2018-1-SCI-042'
+    block_code = 'xfgt5hj-9io'
+
+    httpretty.register_uri(httpretty.POST,
+                           uri=uri('/proposals/{proposal_code}/blocks/resolve'.format(proposal_code=proposal_code)),
+                           body=json.dumps(dict(code=block_code)))
+
+    mock_get = MagicMock()
+    monkeypatch.setattr(salt_api.proposals.session, 'get', mock_get)
+
+    download(BytesIO(), proposal_code=proposal_code, content_type='block', name='My Shiny Block')
+
+    assert mock_get.call_args[0][0] == uri('/proposals/{proposal_code}/blocks/{block_code}'
+                                           .format(proposal_code=proposal_code, block_code=block_code))
+    assert mock_get.call_args[1]['headers']['Content-Type'] == 'application/zip'
+
+
+@httpretty.httprettified
+def test_download_saves_downloaded_content(tmpdir, uri):
+    """download saves the downloaded content in the given file-like object."""
+
+    s = salt_api.proposals.session
+    print(s)
+    proposal_code = '2018-1-SCI-042'
+    block_code = 'xghu-78-opi'
+    downloaded_content = b'This is some dummy download content.'
+    httpretty.register_uri(httpretty.POST,
+                           uri=uri('/proposals/{proposal_code}/blocks/resolve'.format(proposal_code=proposal_code)),
+                           body=json.dumps(dict(code=block_code)))
+    httpretty.register_uri(httpretty.GET,
+                           uri=uri('/proposals/{proposal_code}/blocks/{block_code}'
+                                   .format(proposal_code=proposal_code, block_code=block_code)),
+                           body = downloaded_content)
+
+    filename = tmpdir.join('download.zip')
+    with open(filename, 'wb') as f:
+        download(f, proposal_code, 'Block', 'ABC123')
+
+    with open(filename, 'rb') as f:
+        assert f.read() == downloaded_content
+

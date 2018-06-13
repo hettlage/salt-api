@@ -207,14 +207,59 @@ def download(filename, proposal_code, content_type, name=None):
 
     """
 
+    if hasattr(filename, 'read'):
+        _download(filename, proposal_code, content_type, name)
+    else:
+        with open(filename, 'wb') as f:
+            _download(f, proposal_code, content_type, name)
+
+
+def _download(file, proposal_code, content_type, name=None):
+    """Download proposal content.
+
+    See the `download` function for details.
+
+    Parameters
+    ----------
+    filename : str or file-like
+        The file in which the downloaded content is stored.
+    proposal_code : str
+        The proposal code, such as `2018-1-SCI-042`.
+    content_type : str
+        The type of downloaded content. Must be either `proposal` or `block`.
+    name : str, optional
+        The name of the block to download. This is required when downloading a block and is ignored when downloading
+         a proposal.
+
+    """
+
     base_url = os.environ.get('SALT_API_PROPOSALS_BASE_URL', 'http://saltapi.salt.ac.za')
 
     if content_type.lower() == 'proposal':
-        session.get('{base_url}/proposals/{proposal_code}'.format(base_url=base_url, proposal_code=proposal_code),
-                    headers={'Content-Type': 'application/zip'})
+        # get proposal
+        download_url = '{base_url}/proposals/{proposal_code}'.format(base_url=base_url,
+                                                                     proposal_code=proposal_code)
     elif content_type.lower() == 'block':
+        # get block code
         r = session.post('{base_url}/proposals/{proposal_code}/blocks/resolve'
                          .format(base_url=base_url,
                                  proposal_code=proposal_code),
                          json=dict(name=name))
+        block_code = r.json()['code']
+
+        # get block
+        download_url = '{base_url}/proposals/{proposal_code}/blocks/{block_code}'.format(base_url=base_url,
+                                                                                         proposal_code=proposal_code,
+                                                                                         block_code=block_code)
+    else:
+        raise ValueError('Unsupported content type: {content_type}'.format(content_type=content_type))
+
+    response = session.get(download_url,
+                           headers={'Content-Type': 'application/zip'},
+                           stream=True)
+    for chunk in response.iter_lines(chunk_size=512):
+        if chunk:
+            file.write(chunk)
+
+
 
