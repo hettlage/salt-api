@@ -210,11 +210,23 @@ def download(filename, proposal_code, content_type, name=None):
     base_url = os.environ.get('SALT_API_PROPOSALS_BASE_URL', 'http://saltapi.salt.ac.za')
 
     if content_type.lower() == 'proposal':
+        # get proposal
         session.get('{base_url}/proposals/{proposal_code}'.format(base_url=base_url, proposal_code=proposal_code),
                     headers={'Content-Type': 'application/zip'})
     elif content_type.lower() == 'block':
+        # get block code
         r = session.post('{base_url}/proposals/{proposal_code}/blocks/resolve'
                          .format(base_url=base_url,
                                  proposal_code=proposal_code),
                          json=dict(name=name))
+        block_code = r.json()['code']
+
+        # get block
+        session.get('{base_url}/proposals/{proposal_code}/blocks/{block_code}'
+                    .format(base_url=base_url,
+                            proposal_code=proposal_code,
+                            block_code=block_code),
+                    headers={'Content-Type': 'application/zip'})
+
+
 
