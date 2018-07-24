@@ -40,7 +40,7 @@ If the parent directory is omitted and the xml parameter is a file path, the par
 
 The XML file is screened for Path elements, and the text content of each of these elements is assumed to be a file path, unless it is "auto-generated" or "automatic". Relative file paths are relative to the XML file. If the path of the XML file is undefined (as a file-like object rather than file path was passed), no relative paths may be used.
 
-File paths in the Path elements are replaced with relative paths of the form `Included/{unique}.{ext}`, where `{unique}` and `{ext}` denote a unique random string and the file extension of the file referenced by the Path element. 
+File paths in the Path elements are replaced with relative paths of the form `Included/{unique}.{ext}`, where `{unique}` and `{ext}` denote a unique random string and the file extension of the file referenced by the Path element.
 
 The XML file and all the files referenced in Path elements are zipped. The name of the XML file shall be that of its root element, plus the file extension 'xml'. The paths of the other files shall be those contained in the Path elements.
 
@@ -58,59 +58,153 @@ An exception is raised if the download fails.
 Tests
 -----
 
-The `salt_api` package shall pass the following tests.
+`salt_api` package
+~~~~~~~~~~~~~~~~~~
 
-* The package has a `session` object, which is of type 'AuthSession'.
-  
-The `submit` function in the proposals module shall pass the following tests.
+*Description:* The `salt_api` package has a `session` object, which is of type `AuthSession`.
 
-* `submit` makes a PUT request to `/proposals/{proposal_code}` if a proposal code is passed.
+*Unit test:* `test_salt_api::test_session_exists`
 
-* `submit` makes a POST request to `/proposals` if no proposal code is passed.
+`submit` function in the proposals module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* `submit` submits the passed file as is, if it is a zip file.
+*Description:* When the `submit` function is called with `2018-1-SCI-042` as proposal code, then it makes a PUT request to `/proposals/2018-1-SCI-042`.
 
-* `submit` builds the correct zip file from a passed XML file, and submits that file.
+*Unit test:* `test_proposals::test_submit_put_with_proposal_code`
 
-* An exception is raised if the file passed to `submit` does not exist.
+----
 
-* An exception is raised if the file passed is an XML file and any of its Path elements contains a file path which does not exist.
+*Description:* When the `submit` function is called without a proposal code, it makes a POST request to `/proposals`.
 
-* An exception is raised if a file or file-like object is passed as proposal content, its content is XML and the XML has a Path element containing a relative file path.
+*Unit test:* `test_proposals::test_submit_post_without_proposal_code`
 
-* An exception is raised if the file passed is an XML file and any of its Path elements contains a file path which is a directory.
-  
-* An exception is raised if the file passed cannot be interpreted as a zip file or an XML file.
-  
-* An exception is raised if the server responds with with a status code which is not between 200 and 299. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
-  
-The `zip_proposal_content` function in the `proposals` module shall pass the following tests.
+----
 
-* The XML file and the referenced files are zipped correctly.
-  
-* The parent directory of the XML file is used as the default root directory for the attachment files.
-  
-* The value passed for the attachments_dir parameter is used as the root directory for the attachment files.
-  
-* An exception is raised if the XML contains a relative file path, the value passed for the xml parameter is not a string, and no value is passed for the attachments_dir parameter.
-  
-* An exception is raised if a referenced file does not exist.
-  
-The `download` function in the `proposals` module shall pass the following tests.
+*Description:* Given that `proposal_content.zip` is a zip file, when `submit` is called with `proposal_content.zip`, then the file is submitted as is.
 
-* `download` makes a GET request to `/proposals/{proposal_code}` if the case-insensitive content type is 'proposal'. An Accept header with value `application/zip` is included in this request.
+*Unit test:* `test_proposals::test_zip_file_is_submitted_as_is`
 
-* `download` makes a GET request to `/proposals/{proposal_code}/blocks/resolve` with the query parameter `name`, the value of which is the string passed as the name argument. It parses the result as a JSON object and uses the value of the field `code` as the id in a GET request to `/proposals/{proposal_code}/blocks/{id}`. An Accept header with value `application/zip` is included in this request.
-  
- * `download` saves the downloaded content in a given file-like object.
-   
- * `download` saves the downloaded content in a file with a given file path.
-   
- * An exception is raised if the case-insensitive content type is neither `proposal` nor `block`.
- 
- * An exception is raised if the case-insensitive content type is not `proposal` and no name is supplied.
-   
- * An exception is raised if the server responds with with an error code. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
+----
+
+*Description:* Given that `proposal_content.xml` is an XML file, when `submit` is called with `proposal_content.xml`, then the correct zip file is built and submitted.
+
+*Unit test:* `test_proposals::test_submit_zips_xml_content`
+
+----
+
+*Description:* When `submit` is called with a non-existing file, an exception is raised. The error message shall contain the file path.
+
+*Unit test:* `test_proposals::test_submit_file_does_not_exist`
+
+----
+
+*Description:* Given that `proposal_content.xml` is an XML file with a Path element whose file path points to a non-existing file, when `submit` is called with `proposal_content.xml`, an exception is raised. The error message shall contain the file path.
+
+*Unit test:* `test_proposals::test_submit_referenced_file_does_not_exist`
+
+----
+
+*Description:* Given that `proposal_content.xml` is an XML file with a relative file path in a Path element, when `submit` is called with `proposal_content.xml` as file or file-like object (rather than a file path), an exception is raised. The error message shall contain the file path.
+
+*Unit test:* `test_proposals::test_zip_proposal_content_relative_path`
+
+----
+
+*Description:* Given that `proposal_content.xml` is an XML file with a directory's file path in a Path element, when `submit` is called with `proposal_content.xml`, an exception is raised. The error message shall contain the file path.
+
+*Unit test:* `test_proposals::test_zip_proposal_content_referencing_directory`
+
+----
+
+*Description:* Given that `file` is neither a zip file nor an XML file, when `submit` is called with `file`, an exception is raised.
+
+*Unit test:* `test_proposals::test_submit_neither_zip_nor_xml`
+
+----
+
+*Description:* Given that `submit` makes a server request, when the server responds with with a status code which is not between 200 and 299, an exception is raised. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
+
+*Unit test:* `test_proposals::test_submit_submission_fails_with_error_message`
+
+`zip_proposal_content` function in the `proposals` module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*Description:* The XML file and the referenced files therein are zipped correctly.
+
+*Unit test:* `test_proposals::test_zip_proposal_content_includes_referenced_files`
+
+----
+
+*Description:* Given the XML file is passed as a file path and given that no no value is passed for the `attachments_dir` parameter, the parent directory of the XML file is used as the attachments directory.
+
+*Unit test:* `test_proposals::test_zip_proposal_content_takes_xml_dir_as_attachments_dir`
+
+----
+
+*Description:* Given that a value is passed for the `attachments_dir` parameter, this value is used as attachments directory.
+
+*Unit test:* `test_proposals::test_zip_proposal_content_uses_attachments_dir`
+
+----
+
+*Description:* Given that the XML file contains a Path element with a relative file path, when this file is not passed a file path and no `attachments_dir` argument is passed, then an exception is raised. The error message contains the file path.
+
+*Unit test:* `test_proposals::test_zip_proposal_content_relative_path`
+
+----
+
+*Description:* An exception is raised if a referenced file does not exist. The error message contains the file path of the missing file.
+
+*Unit test:* `test_proposals::test_zip_proposal_content_missing_file`
+
+----
+
+*Description:* An exception is raised if the XML contains a Path element with a file path of a directory. The error message contains the file path.
+
+*Unit test:* `test_proposals::test_zip_proposal_content_referencing_directory`
+
+`download` function in the `proposals` module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*Description:* `A GET request to `/proposals/{proposal_code}` is made if the case-insensitive content type is 'proposal'. An Accept header with value `application/zip` is included in this request.
+
+*Unit test:* `test_proposals::test_download_requests_proposal`
+
+----
+
+*Description:* `download` makes a GET request to `/proposals/{proposal_code}/blocks/resolve` with the query parameter `name`, the value of which is the string passed as the name argument. It parses the result as a JSON object and uses the value of the field `code` as the id in a GET request to `/proposals/{proposal_code}/blocks/{id}`. An Accept header with value `application/zip` is included in this request.
+
+*Unit test:* `test_proposals::test_download_resolves_block_name`, `test_proposals::test_download_requests_block`
+
+----
+
+*Description:* `download` saves the downloaded content in a given file-like object.
+
+*Unit test:* `test_proposals::test_download_saves_downloaded_content`
+
+----
+
+*Description:* `download` saves the downloaded content in a file with a given file path.
+
+*Unit test:* `test_proposals::NOT_IMPLEMENTED_YET`
+
+----
+
+*Description:* An exception is raised if the case-insensitive content type is neither `proposal` nor `block`.
+
+*Unit test:* `test_proposals::NOT_IMPLEMENTED_YET`
+
+----
+
+*Description:* An exception is raised if the case-insensitive content type is not `proposal` and no name argument is supplied.
+
+*Unit test:* `test_proposals::NOT_IMPLEMENTED_YET`
+
+----
+
+*Description:* An exception is raised if the server responds with with an error code. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
+
+*Unit test:* `test_proposals::`NOT_IMPLEMENTED_YET`
 
 Implementation
 --------------
