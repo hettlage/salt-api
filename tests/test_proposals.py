@@ -296,8 +296,8 @@ def test_zip_proposal_content_includes_referenced_files(tmpdir):
                 assert z.read(path) == f.read()
 
 
-def test_zip_proposal_content_takes_xml_dir_as_root_dir(tmpdir):
-    """zip_proposal_content takes the XML file's parent directory as the default for the attachment directory."""
+def test_zip_proposal_content_takes_xml_dir_as_attachments_dir(tmpdir):
+    """zip_proposal_content takes the XML file's parent directory as the default for the attachments directory."""
 
     xml_template = '''<?xml version="1.0"?>
 
@@ -382,9 +382,9 @@ def test_zip_proposal_content_uses_attachments_dir(tmpdir):
             assert z.read(path) == f.read()
 
 
-def test_zip_proposal_content_no_attachment_dir(tmpdir):
-    """zip_proposal_content must raise a meaningful exception if the XML contains a relative file path, the value
-    passed for the xml parameter is not a string, and no value is passed for the attachments_dir parameter."""
+def test_zip_proposal_content_relative_path(tmpdir):
+    """zip_proposal_content must raise a meaningful exception if the XML contains a relative file path in one of its
+    Path elements."""
 
     xml = '''<?xml version="1.0"?>
 
@@ -397,7 +397,7 @@ def test_zip_proposal_content_no_attachment_dir(tmpdir):
     with pytest.raises(Exception) as excinfo:
         zip_proposal_content(zip_filename, StringIO(xml))
 
-    assert 'no attachment directory' in str(excinfo.value)
+    assert 'a/relative/path' in str(excinfo.value)
 
 
 def test_zip_proposal_content_missing_file(tmpdir):
@@ -420,18 +420,19 @@ def test_zip_proposal_content_missing_file(tmpdir):
 def test_zip_proposal_content_referencing_directory(tmpdir):
     """zip_proposal_content must raise a meaningful exception if the XML references a directory."""
 
+    dir = str(tmpdir)
     xml = '''<?xml version="1.0"?>
 
 <Proposal>
     <ns1:Path xmlns:ns1="http://www.saao.ac.za/ns1">{dir}</ns1:Path>
-</Proposal>'''.format(dir=str(tmpdir))
+</Proposal>'''.format(dir=dir)
 
     zip_filename = tmpdir.join('proposal_content.zip')
 
     with pytest.raises(Exception) as excinfo:
         zip_proposal_content(zip_filename, StringIO(xml))
 
-    assert 'is no file' in str(excinfo.value)
+    assert dir in str(excinfo.value)
 
 
 def test_download_requests_proposal(monkeypatch, uri):
