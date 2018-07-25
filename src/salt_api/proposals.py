@@ -1,3 +1,4 @@
+import io
 import os
 import tempfile
 import uuid
@@ -207,7 +208,7 @@ def download(filename, proposal_code, content_type, name=None):
 
     """
 
-    if hasattr(filename, 'read'):
+    if hasattr(filename, 'write'):
         _download(filename, proposal_code, content_type, name)
     else:
         with open(filename, 'wb') as f:
@@ -235,9 +236,15 @@ def _download(file, proposal_code, content_type, name=None):
 
     base_url = os.environ.get('SALT_API_PROPOSALS_BASE_URL', 'http://saltapi.salt.ac.za')
 
+    # sanity check:
+    # if anything other than a proposal is requested, we need the content's name
+    if content_type.lower() != 'proposal' and not name:
+        raise Exception('The content type "{content_type}" requires that you pass a name argument.'
+                        .format(content_type=content_type))
+
     if content_type.lower() == 'proposal':
         # get proposal
-        download_url = '{base_url}/proposals/{proposal_code}'.format(base_url=base_url,
+        download_uri = '{base_url}/proposals/{proposal_code}'.format(base_url=base_url,
                                                                      proposal_code=proposal_code)
     elif content_type.lower() == 'block':
         # get block code
@@ -248,15 +255,25 @@ def _download(file, proposal_code, content_type, name=None):
         block_code = r.json()['code']
 
         # get block
-        download_url = '{base_url}/proposals/{proposal_code}/blocks/{block_code}'.format(base_url=base_url,
+        download_uri = '{base_url}/proposals/{proposal_code}/blocks/{block_code}'.format(base_url=base_url,
                                                                                          proposal_code=proposal_code,
                                                                                          block_code=block_code)
     else:
         raise ValueError('Unsupported content type: {content_type}'.format(content_type=content_type))
 
-    response = session.get(download_url,
+    response = session.get(download_uri,
                            headers={'Content-Type': 'application/zip'},
                            stream=True)
+
+    # handle server errors
+    if response.status_code < 200 or response.status_code >= 300:
+        if response.json() and 'error' in response.json():
+            error_message = response.json()['error']
+        else:
+            error_message = 'An error response was received when making a request to {uri}'.format(uri=download_uri)
+        raise Exception(error_message)
+
+    # save the downloaded content
     for chunk in response.iter_lines(chunk_size=512):
         if chunk:
             file.write(chunk)
