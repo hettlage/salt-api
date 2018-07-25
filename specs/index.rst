@@ -180,31 +180,37 @@ Tests
 
 *Description:* `download` saves the downloaded content in a given file-like object.
 
-*Unit test:* `test_proposals::test_download_saves_downloaded_content`
+*Unit test:* `test_proposals::test_download_saves_downloaded_content_in_file`
 
 ----
 
-*Description:* `download` saves the downloaded content in a file with a given file path.
+*Description:* `download` saves the downloaded content in a file with a given file path. Existing file content is replaced.
 
-*Unit test:* `test_proposals::NOT_IMPLEMENTED_YET`
+*Unit test:* `test_proposals::test_download_saves_downloaded_content_in_file_path`
 
 ----
 
-*Description:* An exception is raised if the case-insensitive content type is neither `proposal` nor `block`.
+*Description:* The content type parameter is case-insensitive.
 
-*Unit test:* `test_proposals::NOT_IMPLEMENTED_YET`
+*Unit test:* `test_proposals::test_download_content_type_case_insensitive`
+
+----
+
+*Description:* An exception is raised if thecontent type is invalid. The error message includes the content type.
+
+*Unit test:* `test_proposals::test_download_invalid_content_type`
 
 ----
 
 *Description:* An exception is raised if the case-insensitive content type is not `proposal` and no name argument is supplied.
 
-*Unit test:* `test_proposals::NOT_IMPLEMENTED_YET`
+*Unit test:* `test_proposals::test_download_name_missing`
 
 ----
 
-*Description:* An exception is raised if the server responds with with an error code. If the server response is a JSON object with an `error` field, the value of that field is used as error message.
+*Description:* An exception is raised if the server responds with with an error code. If the server response is a JSON object with an `error` field, the value of that field is used in error message. Otherwise the request URI is included in the error message.
 
-*Unit test:* `test_proposals::`NOT_IMPLEMENTED_YET`
+*Unit test:* `test_proposals::test_download_handles_server_error_with_message`, `test_proposals::test_download_handles_server_error_without_message`
 
 Implementation
 --------------
