@@ -11,8 +11,10 @@ from salt_api.proposals import download, submit, zip_proposal_content
 
 
 # mock HTTP response object
-HttpResponse = namedtuple('Response', ('status_code', 'iter_lines'))
-ok_response = HttpResponse(status_code=200, iter_lines=lambda chunk_size: [b'some content'])
+HttpResponse = namedtuple('Response', ('status_code', 'iter_lines', 'json'))
+ok_response = HttpResponse(status_code=200,
+                           iter_lines=lambda chunk_size: [b'some content'],
+                           json=lambda: dict(code="uiv632ccg"))
 
 
 def test_submit_put_with_proposal_code(tmpdir, monkeypatch, uri, dummy_zip):
@@ -456,12 +458,12 @@ def test_download_resolves_block_name(monkeypatch, uri):
     proposal_code = '2018-1-SCI-042'
     block_name = 'My Shiny Block'
 
-    mock_get = MagicMock(ok_response)
-    mock_post = MagicMock(ok_response)
+    mock_get = MagicMock(return_value=ok_response)
+    mock_post = MagicMock(return_value=ok_response)
     monkeypatch.setattr(salt_api.proposals.session, 'get', mock_get)
     monkeypatch.setattr(salt_api.proposals.session, 'post', mock_post)
 
-    download(BytesIO, proposal_code=proposal_code, content_type='block', name=block_name)
+    download(BytesIO(), proposal_code=proposal_code, content_type='block', name=block_name)
 
     assert mock_post.call_args[0][0] == uri('/proposals/{proposal_code}/blocks/resolve'
                                             .format(proposal_code=proposal_code))
@@ -479,7 +481,7 @@ def test_download_requests_block(monkeypatch, uri):
                            uri=uri('/proposals/{proposal_code}/blocks/resolve'.format(proposal_code=proposal_code)),
                            body=json.dumps(dict(code=block_code)))
 
-    mock_get = MagicMock()
+    mock_get = MagicMock(return_value=ok_response)
     monkeypatch.setattr(salt_api.proposals.session, 'get', mock_get)
 
     download(BytesIO(), proposal_code=proposal_code, content_type='block', name='My Shiny Block')
@@ -561,7 +563,7 @@ def test_download_invalid_content_type(tmpdir):
     proposal_code = '2018-1-SCI-042'
     content_type = 'vhsfgh67ru'
     with pytest.raises(ValueError) as excinfo:
-        download(filename, proposal_code, content_type)
+        download(filename, proposal_code, content_type, 'my shiny name')
 
     assert content_type in str(excinfo.value)
 
@@ -572,7 +574,50 @@ def test_download_name_missing(tmpdir):
     filename = tmpdir.join('download.zip')
     proposal_code = '2018-1-SCI-042'
     content_type = 'vhsfgh67ru'
-    with pytest.raises(ValueError) as excinfo:
-        download(filename, proposal_code, 'block')
+    with pytest.raises(Exception) as excinfo:
+        download(filename, proposal_code, content_type)
 
     assert content_type in str(excinfo.value)
+
+
+@httpretty.httprettified
+@pytest.mark.parametrize('status', [400, 401, 403, 500])
+def test_download_handles_server_error_with_message(tmpdir, uri, status):
+    # download raises an exception if a server request receives a response with an error status. If the response
+    # includes an error propert in a JSON object, that message is included in the exception's message.
+
+    filename = tmpdir.join('download.zip')
+    proposal_code = '2018-1-SCI-042'
+    content_type = 'proposal'
+    error_message = 'This is an error.'
+    httpretty.register_uri(httpretty.GET,
+                           uri=uri('/proposals/{proposal_code}'.format(proposal_code=proposal_code)),
+                           body=json.dumps(dict(error=error_message)),
+                           status=status)
+
+    with pytest.raises(Exception) as excinfo:
+        download(filename, proposal_code, content_type)
+
+    assert error_message in str(excinfo.value)
+
+
+@httpretty.httprettified
+@pytest.mark.parametrize('status', [400, 401, 403, 500])
+def test_download_handles_server_error_without_message(tmpdir, uri, status):
+    # download raises an exception if a server request receives a response with an error status. If the response
+    # does not include an error property in a JSON object, the request URI included in the exception's message.
+
+    filename = tmpdir.join('download.zip')
+    proposal_code = '2018-1-SCI-042'
+    content_type = 'proposal'
+    error_message = 'This is an error.'
+    download_uri = uri('/proposals/{proposal_code}'.format(proposal_code=proposal_code))
+    httpretty.register_uri(httpretty.GET,
+                           uri=download_uri,
+                           body=json.dumps(dict()),
+                           status=status)
+
+    with pytest.raises(Exception) as excinfo:
+        download(filename, proposal_code, content_type)
+
+    assert download_uri in str(excinfo.value)
