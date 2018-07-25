@@ -11,8 +11,8 @@ from salt_api.proposals import download, submit, zip_proposal_content
 
 
 # mock HTTP response object
-HttpResponse = namedtuple('Response', 'status_code')
-ok_response = HttpResponse(status_code=200)
+HttpResponse = namedtuple('Response', ('status_code', 'iter_lines'))
+ok_response = HttpResponse(status_code=200, iter_lines=lambda chunk_size: [b'some content'])
 
 
 def test_submit_put_with_proposal_code(tmpdir, monkeypatch, uri, dummy_zip):
@@ -490,11 +490,9 @@ def test_download_requests_block(monkeypatch, uri):
 
 
 @httpretty.httprettified
-def test_download_saves_downloaded_content(tmpdir, uri):
-    """download saves the downloaded content in the given file-like object."""
+def test_download_saves_downloaded_content_in_file(tmpdir, uri):
+    """download saves the downloaded content in the given file object."""
 
-    s = salt_api.proposals.session
-    print(s)
     proposal_code = '2018-1-SCI-042'
     block_code = 'xghu-78-opi'
     downloaded_content = b'This is some dummy download content.'
@@ -513,3 +511,68 @@ def test_download_saves_downloaded_content(tmpdir, uri):
     with open(filename, 'rb') as f:
         assert f.read() == downloaded_content
 
+
+@pytest.mark.parametrize('content_type', ('proposal', 'PROPOSAL', 'Proposal', 'pRoPOsAL'))
+def test_download_content_type_case_insensitive(tmpdir, monkeypatch, uri, content_type):
+    # The content type is case-insensitive.
+
+    proposal_code = '2018-1-SCI-042'
+
+    mock_get = MagicMock(return_value=ok_response)
+    monkeypatch.setattr(salt_api.proposals.session, 'get', mock_get)
+
+    download(BytesIO(), proposal_code=proposal_code, content_type=content_type)
+
+    assert mock_get.call_args[0][0] == uri('/proposals/{proposal_code}'.format(proposal_code=proposal_code))
+    assert mock_get.call_args[1]['headers']['Content-Type'] == 'application/zip'
+
+@httpretty.httprettified
+def test_download_saves_downloaded_content_in_file_path(tmpdir, uri):
+    """download saves the downloaded content in the given file-like object. Existing file content is replaced."""
+
+    # set up file content, so that we can test it is replaced
+    filename = tmpdir.join('download.zip')
+    with open(filename, 'wb') as f:
+        f.write(b'This is content that shall be replaced.')
+
+    # download the proposal content
+    proposal_code = '2018-1-SCI-042'
+    block_code = 'xghu-78-opi'
+    downloaded_content = b'This is some dummy download content.'
+    httpretty.register_uri(httpretty.POST,
+                           uri=uri('/proposals/{proposal_code}/blocks/resolve'.format(proposal_code=proposal_code)),
+                           body=json.dumps(dict(code=block_code)))
+    httpretty.register_uri(httpretty.GET,
+                           uri=uri('/proposals/{proposal_code}/blocks/{block_code}'
+                                   .format(proposal_code=proposal_code, block_code=block_code)),
+                           body = downloaded_content)
+
+    download(filename, proposal_code, 'Block', 'ABC123')
+
+    # check that the proposal content has replaced the existing content
+    with open(filename, 'rb') as f:
+        assert f.read() == downloaded_content
+
+
+def test_download_invalid_content_type(tmpdir):
+    # download raises a meaningful ValueError if it is called with an invalid content type
+
+    filename = tmpdir.join('download.zip')
+    proposal_code = '2018-1-SCI-042'
+    content_type = 'vhsfgh67ru'
+    with pytest.raises(ValueError) as excinfo:
+        download(filename, proposal_code, content_type)
+
+    assert content_type in str(excinfo.value)
+
+
+def test_download_name_missing(tmpdir):
+    # download raises a meaningful exception if the content type is not 'proposal' and no name argument is supplied.
+
+    filename = tmpdir.join('download.zip')
+    proposal_code = '2018-1-SCI-042'
+    content_type = 'vhsfgh67ru'
+    with pytest.raises(ValueError) as excinfo:
+        download(filename, proposal_code, 'block')
+
+    assert content_type in str(excinfo.value)
